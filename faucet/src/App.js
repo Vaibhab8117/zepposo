@@ -1,28 +1,36 @@
 import "./App.css";
-import {useEffect, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import Web3 from "web3";
 import detectEthereumProvider from '@metamask/detect-provider'
-
 
 
 function App() {
   const [web3Api, setWeb3Api] = useState({
     provider: null,
-    web3: null
+    web3: null,
+   
+
   })
-
+  const [balance, setBallance] = useState(null)
   const [account, setAccount] = useState(null)
-
+  const [shouldReload, reload] = useState(null)
+  const reloadEffect = useCallback(() => reload(!shouldReload), [shouldReload])
+  const setAccountListener = provider => {
+      provider.on("accountsChanged", accounts => setAccount(accounts[0]))
+  }
   useEffect(() => {
 
     const loadProvider = async () => {
       const provider = await detectEthereumProvider()
+      
+      
 
       if (provider) {
-      
+       setAccountListener(provider)
         setWeb3Api({
           web3: new Web3(provider),
-          provider
+          provider,
+          
         })
 
 
@@ -36,6 +44,19 @@ function App() {
     loadProvider()
 
   }, [])
+  
+
+  useEffect(() => 
+   {
+   const loadBalance = async () => {
+    const { contract, web3 } = web3Api 
+    const balance = await web3.eth.getBalance(contract.address)
+    setBallance(web3.utils.fromWei(balance, "ether"))
+   
+   }
+   web3Api.contract && loadBalance()
+  }, [web3Api, shouldReload])
+
 
   useEffect(() => {
     const getAccount = async () => {
@@ -46,6 +67,26 @@ function App() {
 
     web3Api.web3 && getAccount()
   }, [web3Api.web3])
+  
+  const addFunds = useCallback(async () => {
+    const { contract, web3 } = web3Api
+    await contract.addFunds({
+      from: account,
+      value: web3.utils.toWei("1", "ether")
+    })
+    
+    reloadEffect()
+  }, [web3Api, account, reloadEffect])
+
+const withdraw = async () => {
+  const { contract, web3 } = web3Api
+  const withdrawAmount = web3.utils.toWei("0.1", "ether")
+    await contract.withdraw(withdrawAmount, {
+      from: account
+    })
+ reloadEffect()
+}
+
 
   
   return (
@@ -66,11 +107,13 @@ function App() {
             </button>}
         </div>
         <div className = "balance-view is-size-2 my-5 ">
-          Current Balance: <strong>10</strong> ETH
+          Current Balance: <strong>{balance}</strong> eth
         </div>
         
-        <button className="button is-link is-primary is-light mr-2">Donate</button>
-        <button className="button  is-danger is-light">Withdraw</button>
+        <button 
+        onClick = { addFunds } className="button is-link is-primary is-light mr-2">Donate 1 eth</button>
+        <button
+        onClick={withdraw} className="button  is-danger is-light">Withdraw</button>
     </div>
     </div>
   </>
